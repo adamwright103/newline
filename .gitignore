@@ -1,1 +1,23 @@
+# Build output
+build/
+
+# Managed components (auto-downloaded by IDF)
+managed_components/
+
+# CMake/IDF generated
+sdkconfig.old
+sdkconfig.*.old
+sdkconfig.cmake
+sdkconfig.h
+sdkconfig.json
+
+# IDE/editor
+.vscode/
+*.code-workspace
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Secrets
 secret.*
