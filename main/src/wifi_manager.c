@@ -25,6 +25,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
     {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG, "ESP32 Local Network IP Address: " IPSTR, IP2STR(&event->ip_info.ip));
+        esp_wifi_set_ps(WIFI_PS_NONE);
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
@@ -46,8 +47,12 @@ void wifi_manager_init_and_wait(void)
         .sta = {
             .ssid = WIFI_SSID,
             .password = WIFI_PASS,
+            .scan_method = WIFI_ALL_CHANNEL_SCAN,
+            .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
+            .threshold.rssi = -53, // Rejects nodes weaker than -53 dBm
         },
     };
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());

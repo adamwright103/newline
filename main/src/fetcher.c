@@ -114,38 +114,23 @@ static bool fetch_local_data(void)
     return success;
 }
 
-static void fetcher_task(void *pvParameters)
+bool fetch_daily_info(void)
 {
-    while (1)
+    payload_store_set_status(PAYLOAD_STATUS_FETCHING);
+
+    for (int attempt = 1; attempt <= MAX_FETCH_RETRIES; attempt++)
     {
-        payload_store_set_status(PAYLOAD_STATUS_FETCHING);
-        bool fetch_ok = false;
-
-        for (int attempt = 1; attempt <= MAX_FETCH_RETRIES; attempt++)
+        ESP_LOGI(TAG, "Fetch attempt %d of %d...", attempt, MAX_FETCH_RETRIES);
+        if (fetch_local_data())
         {
-            ESP_LOGI(TAG, "Fetch attempt %d of %d...", attempt, MAX_FETCH_RETRIES);
-            if (fetch_local_data())
-            {
-                fetch_ok = true;
-                break;
-            }
-            if (attempt < MAX_FETCH_RETRIES)
-            {
-                vTaskDelay(pdMS_TO_TICKS(FETCH_RETRY_DELAY_MS));
-            }
+            return true;
         }
-
-        if (!fetch_ok)
+        if (attempt < MAX_FETCH_RETRIES)
         {
-            ESP_LOGE(TAG, "All %d fetch attempts failed.", MAX_FETCH_RETRIES);
-            payload_store_set_status(PAYLOAD_STATUS_FAILED);
+            vTaskDelay(pdMS_TO_TICKS(FETCH_RETRY_DELAY_MS));
         }
-
-        vTaskDelay(pdMS_TO_TICKS(FETCH_INTERVAL_MS));
     }
-}
 
-void fetcher_start(void)
-{
-    xTaskCreate(&fetcher_task, "fetcher_task", 4096, NULL, 5, NULL);
+    payload_store_set_status(PAYLOAD_STATUS_FAILED);
+    return false;
 }

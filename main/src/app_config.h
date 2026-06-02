@@ -9,7 +9,8 @@
 
 // Fetcher Timing & Retries
 #define MAX_FETCH_RETRIES 3
-#define FETCH_INTERVAL_MS (6 * 60 * 60 * 1000) // 6 Hours
-#define FETCH_RETRY_DELAY_MS (5 * 1000)        // 5 Seconds between retries
+#define FETCH_INTERVAL_MS (6 * 60 * 60 * 1000)  // 6 Hours
+#define FETCH_INTERVAL_MS_DEBUG (1 * 60 * 1000) // 1 minute
+#define FETCH_RETRY_DELAY_MS (5 * 1000)         // 5 Seconds between retries
 
 #endif // APP_CONFIG_H
