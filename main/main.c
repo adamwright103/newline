@@ -2,7 +2,6 @@
 #include "esp_log.h"
 #include "src/payload_store.h"
 #include "src/wifi_manager.h"
-#include "src/webserver.h"
 #include "src/fetcher.h"
 
 static const char *TAG = "MAIN";
@@ -26,6 +25,5 @@ void app_main(void)
     wifi_manager_init_and_wait();
 
     // Spin up modules
-    webserver_start();
     fetcher_start();
 }
