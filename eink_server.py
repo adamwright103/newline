@@ -13,6 +13,16 @@ PORT = 8080  # Port 80 requires 'sudo', so 8080 is much safer/easier on Linux
 # Global variable to hold the payload
 e_ink_payload = json.dumps({"status": "Waiting for initial data..."})
 
+def round_floats(obj):
+    """Recursively walks through JSON data to round all floats to 1 decimal place."""
+    if isinstance(obj, float):
+        return round(obj, 1)
+    elif isinstance(obj, dict):
+        return {k: round_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [round_floats(elem) for elem in obj]
+    return obj
+
 def fetch_google_data():
     """Fetches data from Google Apps Script on a set interval."""
     global e_ink_payload
@@ -26,14 +36,13 @@ def fetch_google_data():
                 if response.status == 200:
                     # Read and parse the massive JSON string
                     data = json.loads(response.read().decode('utf-8'))
-                    print("Data received. Parsing...")
+                    print("Data received. Processing and rounding floats to 1 dp...")
                     
-                    # Remove the 'hourly' key and its associated array data from 'weather'
-                    if 'weather' in data and 'hourly' in data['weather']:
-                        del data['weather']['hourly']
+                    # Clean up the floats before saving
+                    cleaned_data = round_floats(data)
                     
                     # Serialize the modified JSON back into a string
-                    e_ink_payload = json.dumps(data)
+                    e_ink_payload = json.dumps(cleaned_data)
                     print("Successfully updated payload!")
                 else:
                     print(f"HTTP GET failed, status code: {response.status}")

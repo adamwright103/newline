@@ -14,7 +14,12 @@ static SemaphoreHandle_t s_mutex = NULL;
 void payload_store_init(void)
 {
     s_mutex = xSemaphoreCreateMutex();
-    strcpy(s_payload, "{\"status\": \"Waiting for initial data...\"}");
+    if (s_mutex == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to create mutex!");
+        return;
+    }
+    strncpy(s_payload, "{\"status\": \"Waiting for initial data...\"}", MAX_HTTP_BUF - 1);
 }
 
 void payload_store_set_status(payload_status_t status)
@@ -41,19 +46,19 @@ void payload_store_set_data(const char *json_str)
 {
     if (xSemaphoreTake(s_mutex, portMAX_DELAY))
     {
-        strncpy(s_payload, json_str, MAX_HTTP_BUF - 1);
-        s_payload[MAX_HTTP_BUF - 1] = '\0';
-        s_status = PAYLOAD_STATUS_READY;
-        xSemaphoreGive(s_mutex);
-
         if (json_str != NULL)
         {
+            strncpy(s_payload, json_str, MAX_HTTP_BUF - 1);
+            s_payload[MAX_HTTP_BUF - 1] = '\0';
+            s_status = PAYLOAD_STATUS_READY;
             ESP_LOGI(TAG, "Payload store updated with: %s", json_str);
         }
         else
         {
+            s_status = PAYLOAD_STATUS_FAILED; // Or whatever makes sense for your app
             ESP_LOGW(TAG, "Payload store received a NULL string!");
         }
+        xSemaphoreGive(s_mutex);
     }
 }
 

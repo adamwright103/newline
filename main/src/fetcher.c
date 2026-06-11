@@ -47,7 +47,14 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 
 static bool fetch_local_data(void)
 {
-    char local_response_buffer[MAX_HTTP_BUF] = {0};
+    char *local_response_buffer = malloc(MAX_HTTP_BUF);
+    if (local_response_buffer == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to allocate memory for HTTP response buffer!");
+        return false;
+    }
+    memset(local_response_buffer, 0, MAX_HTTP_BUF);
+
     http_response_t response = {
         .buffer = local_response_buffer,
         .max_len = MAX_HTTP_BUF,
@@ -77,7 +84,6 @@ static bool fetch_local_data(void)
             }
             else
             {
-                // cJSON_Parse performs internal stack structural validation
                 cJSON *json = cJSON_Parse(local_response_buffer);
                 if (json == NULL)
                 {
@@ -89,14 +95,9 @@ static bool fetch_local_data(void)
                 }
                 else
                 {
-                    char *formatted_json = cJSON_PrintUnformatted(json);
-                    if (formatted_json != NULL)
-                    {
-                        payload_store_set_data(formatted_json);
-                        free(formatted_json);
-                        success = true;
-                    }
+                    payload_store_set_data(local_response_buffer);
                     cJSON_Delete(json);
+                    success = true;
                 }
             }
         }
@@ -111,6 +112,7 @@ static bool fetch_local_data(void)
     }
 
     esp_http_client_cleanup(client);
+    free(local_response_buffer);
     return success;
 }
 
