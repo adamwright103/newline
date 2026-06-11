@@ -2,12 +2,15 @@
 #include "esp_log.h"
 #include "esp_sleep.h"
 #include "esp_wifi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+// --- APP INCLUDES ---
 #include "src/payload_store.h"
 #include "src/wifi_manager.h"
 #include "src/fetcher.h"
 #include "src/app_config.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include "src/display.h"
 
 #define DEBUG_MODE 1
 static const char *TAG = "MAIN";
@@ -23,7 +26,7 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     payload_store_init();
-
+    display_init();
     wifi_manager_init_and_wait();
 
     ESP_LOGI(TAG, "Waiting for network to settle...");
@@ -34,7 +37,8 @@ void app_main(void)
     {
         ESP_LOGI(TAG, "Data fetched successfully!");
 
-        // eink code goes here
+        // Handle Display Updates
+        display_draw_static_ui();
     }
     else
     {
@@ -55,6 +59,7 @@ void app_main(void)
 
     esp_wifi_disconnect();
     esp_wifi_stop();
+    display_deinit();
 
     esp_deep_sleep(sleep_time_us);
 }
