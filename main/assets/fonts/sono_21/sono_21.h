@@ -4,9 +4,10 @@
 
 extern const int TALLEST_CHAR_PIXELS;
 
-extern const uint8_t b_sono_b_extralight_25_font_pixels[];
+extern const uint8_t b_sono_21_font_pixels[];
 
-struct font_char {
+struct font_char
+{
     int offset;
     int w;
     int h;
@@ -15,4 +16,4 @@ struct font_char {
     int advance;
 };
 
-extern const struct font_char b_sono_b_extralight_25_font_lookup[];
+extern const struct font_char b_sono_21_font_lookup[];
