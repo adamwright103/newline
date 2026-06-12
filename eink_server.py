@@ -4,11 +4,31 @@ import urllib.request
 import time
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import re
+import os
 
 # --- Configuration ---
-GAS_URL = "https://script.google.com/macros/s/AKfycbyvnjYTnvkSDPWTnu60j87TtqKiTNB0CK3J9XgsJTPo_D94zdWuvd6XQS9fDg3ped1VQA/exec?key=MY_SECRET_KEY"
+def get_secret(key):
+    """Extracts a #define value from secret.h"""
+    # Look for secret.h in the same directory as the script
+    secret_path = os.path.join(os.path.dirname(__file__), 'secret.h')
+    
+    try:
+        with open(secret_path, 'r') as f:
+            # Regex looks for: #define KEY "VALUE"
+            match = re.search(rf'#define\s+{key}\s+"([^"]+)"', f.read())
+            if match:
+                return match.group(1)
+            else:
+                raise ValueError(f"Key {key} not found in secret.h")
+    except FileNotFoundError:
+        print("Error: secret.h file not found!")
+        exit(1)
+
+# Dynamically load the Google URL
+GAS_URL = get_secret("GAS_URL")
 FETCH_INTERVAL = 3 * 60 * 60  # 3 hours in seconds
-PORT = 8080  # Port 80 requires 'sudo', so 8080 is much safer/easier on Linux
+PORT = 8080
 
 # Global variable to hold the payload
 e_ink_payload = json.dumps({"status": "Waiting for initial data..."})
@@ -83,6 +103,7 @@ def run_server():
     
     print(f"Linux local network IP Address: (Check using 'ip a' in another terminal)")
     print(f"Server listening on http://localhost:{PORT}")
+    print("Try: http://192.168.1.178:8080/")
     print("Press Ctrl+C to stop.")
     
     try:

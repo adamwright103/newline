@@ -20,4 +20,5 @@ sdkconfig.json
 Thumbs.db
 
 # Secrets
-secret.*
+secret.h
+main/assets/static_ui.bin
