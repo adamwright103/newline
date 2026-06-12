@@ -1,0 +1,13 @@
+# Ignore all hidden files and folders
+.*
+
+# Ignore specific directories
+node_modules
+dist
+build
+managed_components
+
+# Ignore specific file types
+*.log
+*.example.*
+*.template.*
