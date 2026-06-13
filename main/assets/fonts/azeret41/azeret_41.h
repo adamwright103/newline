@@ -2,8 +2,6 @@
 
 #include <stdint.h>
 
-extern const int TALLEST_CHAR_PIXELS;
-
 extern const uint8_t b_azeret_41_font_pixels[];
 
 struct font_char

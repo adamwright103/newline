@@ -73,7 +73,7 @@ void app_main(void)
         }
 
         // Handle Display Updates
-        display_draw_static_ui();
+        display_draw_ui();
     }
     else
     {

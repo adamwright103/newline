@@ -7,9 +7,9 @@
 void display_init(void);
 
 /**
- * @brief Draw the static UI and refresh the screen
+ * @brief Dynamically generate and draw the UI, then refresh the screen
  */
-void display_draw_static_ui(void);
+void display_draw_ui(void);
 
 /**
  * @brief Send the sleep command and free the SPI bus

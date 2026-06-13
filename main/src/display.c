@@ -6,6 +6,11 @@
 #include "esp_log.h"
 #include <string.h>
 
+// --- APP INCLUDES ---
+#include "payload_store.h"
+#include "../assets/fonts/azeret41/azeret_41.h"
+#include "../assets/fonts/sono_21/sono_21.h"
+
 static const char *TAG = "DISPLAY";
 
 // --- E-INK DEFINES ---
@@ -17,9 +22,9 @@ static const char *TAG = "DISPLAY";
 #define PIN_NUM_RST 16
 #define PIN_NUM_BUSY 4
 
-// Declare the embedded image assembly symbols
-extern const uint8_t static_ui_start[] asm("_binary_static_ui_bin_start");
-extern const uint8_t static_ui_end[] asm("_binary_static_ui_bin_end");
+#define DISPLAY_WIDTH 800
+#define DISPLAY_HEIGHT 480
+#define BUFFER_SIZE (DISPLAY_WIDTH * DISPLAY_HEIGHT / 8)
 
 static spi_device_handle_t spi;
 
@@ -30,7 +35,6 @@ static void eink_gpio_init(void)
     gpio_set_direction(PIN_NUM_DC, GPIO_MODE_OUTPUT);
     gpio_set_direction(PIN_NUM_RST, GPIO_MODE_OUTPUT);
     gpio_set_direction(PIN_NUM_BUSY, GPIO_MODE_INPUT);
-    // Note: Adjust pullup if your hardware requires it, matches Arduino INPUT
     gpio_set_pull_mode(PIN_NUM_BUSY, GPIO_PULLUP_ONLY);
 }
 
@@ -50,7 +54,6 @@ static void eink_send_data(const uint8_t *data, size_t len)
     spi_device_polling_transmit(spi, &t);
 }
 
-// Memory-friendly helper to fill EPD RAM with a specific byte (0xFF or 0x00)
 static void eink_send_fill(uint8_t val, size_t length)
 {
     const size_t chunk_size = 4000;
@@ -72,7 +75,6 @@ static void eink_send_fill(uint8_t val, size_t length)
     free(chunk);
 }
 
-// Exactly matches Arduino lcd_chkstatus()
 static void wait_until_idle(void)
 {
     uint8_t busy;
@@ -83,11 +85,10 @@ static void wait_until_idle(void)
         busy = !(busy & 0x01);
         if (busy)
         {
-            vTaskDelay(pdMS_TO_TICKS(10)); // Yield to prevent Watchdog timeout
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
     } while (busy);
 
-    // Mandatory delay from Arduino driver_delay_xms(200)
     vTaskDelay(pdMS_TO_TICKS(200));
 }
 
@@ -112,6 +113,57 @@ static void eink_spi_init(void)
     spi_bus_add_device(SPI3_HOST, &devcfg, &spi);
 }
 
+// --- RENDERING HELPERS ---
+
+static int measure_string(const char *str, const struct font_char *lookup)
+{
+    int width = 0;
+    while (*str)
+    {
+        char c = *str++;
+        if (c >= 32 && c <= 126)
+        {
+            width += lookup[c - 32].advance;
+        }
+    }
+    return width;
+}
+
+static void draw_char(uint8_t *fb, char c, int *cursor_x, int cursor_y,
+                      const struct font_char *lookup, const uint8_t *pixels)
+{
+    if (c < 32 || c > 126)
+        return;
+
+    struct font_char fc = lookup[c - 32];
+
+    for (int r = 0; r < fc.h; r++)
+    {
+        for (int c_idx = 0; c_idx < fc.w; c_idx++)
+        {
+            int px_idx = fc.offset + (r * fc.w) + c_idx;
+            uint8_t alpha = pixels[px_idx];
+
+            // Thresholding: >127 is considered dark/black
+            if (alpha > 127)
+            {
+                int draw_x = *cursor_x + fc.left + c_idx;
+                int draw_y = cursor_y + fc.top + r;
+
+                // Bounds checking
+                if (draw_x >= 0 && draw_x < DISPLAY_WIDTH && draw_y >= 0 && draw_y < DISPLAY_HEIGHT)
+                {
+                    int byte_idx = (draw_y * DISPLAY_WIDTH + draw_x) / 8;
+                    int bit_idx = 7 - (draw_x % 8);
+                    fb[byte_idx] &= ~(1 << bit_idx); // Clear bit to 0 (Black)
+                }
+            }
+        }
+    }
+    // Advance the cursor for the next character
+    *cursor_x += fc.advance;
+}
+
 // --- PUBLIC FUNCTIONS ---
 
 void display_init(void)
@@ -121,13 +173,56 @@ void display_init(void)
     eink_spi_init();
 }
 
-void display_draw_static_ui(void)
+void display_draw_ui(void)
 {
-    size_t image_size = static_ui_end - static_ui_start;
-    ESP_LOGI(TAG, "Drawing E-ink UI. Image size: %zu bytes", image_size);
+    ESP_LOGI(TAG, "Generating Dynamic E-ink UI...");
+
+    // 1. Allocate and clear frame buffer to white (0xFF)
+    uint8_t *fb = malloc(BUFFER_SIZE);
+    if (!fb)
+    {
+        ESP_LOGE(TAG, "Failed to allocate memory for frame buffer!");
+        return;
+    }
+    memset(fb, 0xFF, BUFFER_SIZE);
+
+    // 2. Fetch data and render to buffer
+    date_data_t date;
+    if (payload_store_get_date(&date))
+    {
+        // Define bounding box for the date region
+        const int box_width = 240;
+
+        // Measure strings to center them
+        int day_width = measure_string(date.day, b_azeret_41_font_lookup);
+        int formatted_width = measure_string(date.formatted, b_sono_21_font_lookup);
+
+        int day_x = (box_width - day_width) / 2;
+        int formatted_x = (box_width - formatted_width) / 2;
+
+        // Prevent negative cursor start if string exceeds bounding box
+        if (day_x < 0)
+            day_x = 0;
+        if (formatted_x < 0)
+            formatted_x = 0;
+
+        // Draw day text (azeret_41) near the top
+        int cursor_x = day_x;
+        for (int i = 0; i < strlen(date.day); i++)
+        {
+            draw_char(fb, date.day[i], &cursor_x, 2, b_azeret_41_font_lookup, b_azeret_41_font_pixels);
+        }
+
+        // Draw formatted date (sono_21) beneath it
+        cursor_x = formatted_x;
+        for (int i = 0; i < strlen(date.formatted); i++)
+        {
+            draw_char(fb, date.formatted[i], &cursor_x, 45, b_sono_21_font_lookup, b_sono_21_font_pixels);
+        }
+    }
 
     // ==========================================
-    // 1. HARDWARE RESET & EPD_init() equivalents
+    // 3. HARDWARE RESET & EPD Init
     // ==========================================
     gpio_set_level(PIN_NUM_RST, 0);
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -162,41 +257,31 @@ void display_draw_static_ui(void)
     eink_send_data(tcon_data, 1);
 
     // ==========================================
-    // 2. DATA TRANSFER (PIC_display1 equivalent)
+    // 4. DATA TRANSFER
     // ==========================================
-
-    // Transfer old data (Fill 48000 bytes with 0xFF)
+    // Clear old data memory footprint
     eink_send_cmd(0x10);
-    eink_send_fill(0xFF, 48000);
+    eink_send_fill(0xFF, BUFFER_SIZE);
 
-    // Transfer new data (Image file + zero-padding up to 48000)
+    // Send newly generated frame buffer
     eink_send_cmd(0x13);
-
-    // Cap at screen maximum just in case the bin is slightly larger
-    size_t transfer_size = (image_size > 48000) ? 48000 : image_size;
-    eink_send_data(static_ui_start, transfer_size);
-
-    // If the image is smaller than 48000, pad the rest with 0x00
-    if (transfer_size < 48000)
-    {
-        eink_send_fill(0x00, 48000 - transfer_size);
-    }
+    eink_send_data(fb, BUFFER_SIZE);
 
     // ==========================================
-    // 3. REFRESH (EPD_refresh equivalent)
+    // 5. REFRESH
     // ==========================================
     eink_send_cmd(0x12);
-    vTaskDelay(pdMS_TO_TICKS(100)); // Mandatory 100ms delay from Arduino logic
+    vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGI(TAG, "Waiting for E-ink refresh to complete...");
     wait_until_idle();
     ESP_LOGI(TAG, "E-ink refresh complete!");
+
+    // Free the frame buffer memory
+    free(fb);
 }
 
 void display_deinit(void)
 {
-    // ==========================================
-    // 4. SLEEP (EPD_sleep equivalent)
-    // ==========================================
     eink_send_cmd(0x50);
     const uint8_t sleep_vcom[] = {0xf7};
     eink_send_data(sleep_vcom, 1);
@@ -208,7 +293,6 @@ void display_deinit(void)
     const uint8_t deep_sleep[] = {0xA5};
     eink_send_data(deep_sleep, 1);
 
-    // Free up the SPI bus before sleeping the ESP32
     spi_bus_remove_device(spi);
     spi_bus_free(SPI3_HOST);
 }

@@ -2,8 +2,6 @@
 
 #include "azeret_41.h"
 
-const int TALLEST_CHAR_PIXELS = 41;
-
 const struct font_char b_azeret_41_font_lookup[] = {
     // offset, width, height, left, top, advance
     {0, 0, 0, 0, 41, 26},
