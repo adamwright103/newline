@@ -6,7 +6,11 @@
 #include <stdio.h>
 #include "esp_log.h"
 
-static char s_payload[MAX_HTTP_BUF] = "";
+// Define three separate struct stores
+static weather_data_t s_weather;
+static date_data_t s_date;
+static cryptic_data_t s_cryptic;
+
 static const char *TAG = "PAYLOAD_STORE";
 static payload_status_t s_status = PAYLOAD_STATUS_FETCHING;
 static SemaphoreHandle_t s_mutex = NULL;
@@ -19,7 +23,11 @@ void payload_store_init(void)
         ESP_LOGE(TAG, "Failed to create mutex!");
         return;
     }
-    strncpy(s_payload, "{\"status\": \"Waiting for initial data...\"}", MAX_HTTP_BUF - 1);
+
+    // Zero out memory initially
+    memset(&s_weather, 0, sizeof(weather_data_t));
+    memset(&s_date, 0, sizeof(date_data_t));
+    memset(&s_cryptic, 0, sizeof(cryptic_data_t));
 }
 
 void payload_store_set_status(payload_status_t status)
@@ -42,43 +50,69 @@ payload_status_t payload_store_get_status(void)
     return status;
 }
 
-void payload_store_set_data(const char *json_str)
+void payload_store_set_data(const weather_data_t *weather, const date_data_t *date, const cryptic_data_t *cryptic)
 {
     if (xSemaphoreTake(s_mutex, portMAX_DELAY))
     {
-        if (json_str != NULL)
+        if (weather != NULL && date != NULL && cryptic != NULL)
         {
-            strncpy(s_payload, json_str, MAX_HTTP_BUF - 1);
-            s_payload[MAX_HTTP_BUF - 1] = '\0';
+            s_weather = *weather;
+            s_date = *date;
+            s_cryptic = *cryptic;
+
             s_status = PAYLOAD_STATUS_READY;
-            ESP_LOGI(TAG, "Payload store updated with: %s", json_str);
+            ESP_LOGI(TAG, "Payload store updated successfully.");
         }
         else
         {
-            s_status = PAYLOAD_STATUS_FAILED; // Or whatever makes sense for your app
-            ESP_LOGW(TAG, "Payload store received a NULL string!");
+            s_status = PAYLOAD_STATUS_FAILED;
+            ESP_LOGW(TAG, "Payload store received a NULL struct pointer!");
         }
         xSemaphoreGive(s_mutex);
     }
 }
 
-void payload_store_get_response(char *out_buf, size_t max_len)
+bool payload_store_get_weather(weather_data_t *out_data)
 {
+    bool is_ready = false;
     if (xSemaphoreTake(s_mutex, portMAX_DELAY))
     {
-        switch (s_status)
+        if (s_status == PAYLOAD_STATUS_READY && out_data != NULL)
         {
-        case PAYLOAD_STATUS_READY:
-            strncpy(out_buf, s_payload, max_len - 1);
-            break;
-        case PAYLOAD_STATUS_FETCHING:
-            strncpy(out_buf, "{\"status\": \"fetching\"}", max_len - 1);
-            break;
-        case PAYLOAD_STATUS_FAILED:
-            strncpy(out_buf, "{\"status\": \"fetch failed\"}", max_len - 1);
-            break;
+            *out_data = s_weather;
+            is_ready = true;
         }
-        out_buf[max_len - 1] = '\0';
         xSemaphoreGive(s_mutex);
     }
+    return is_ready;
+}
+
+bool payload_store_get_date(date_data_t *out_data)
+{
+    bool is_ready = false;
+    if (xSemaphoreTake(s_mutex, portMAX_DELAY))
+    {
+        if (s_status == PAYLOAD_STATUS_READY && out_data != NULL)
+        {
+            *out_data = s_date;
+            is_ready = true;
+        }
+        xSemaphoreGive(s_mutex);
+    }
+    return is_ready;
+}
+
+bool payload_store_get_cryptic(cryptic_data_t *out_data)
+{
+    bool is_ready = false;
+    if (xSemaphoreTake(s_mutex, portMAX_DELAY))
+    {
+        if (s_status == PAYLOAD_STATUS_READY && out_data != NULL)
+        {
+            *out_data = s_cryptic;
+            is_ready = true;
+        }
+        xSemaphoreGive(s_mutex);
+    }
+    return is_ready;
 }

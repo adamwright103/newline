@@ -3,7 +3,7 @@
 
 #include "../../secret.h" // Expected to define WIFI_SSID and WIFI_PASS
 
-#define LOCAL_URL "http://192.168.1.178:8080/"
+#define LOCAL_URL LOCAL_PROXY_URL
 #define MAX_HTTP_BUF 1024
 #define SERVER_PORT 80
 

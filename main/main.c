@@ -37,6 +37,41 @@ void app_main(void)
     {
         ESP_LOGI(TAG, "Data fetched successfully!");
 
+        weather_data_t weather;
+        if (payload_store_get_weather(&weather))
+        {
+            ESP_LOGI(TAG, "--- WEATHER PAYLOAD ---");
+            ESP_LOGI(TAG, "Max Temp: %.1f, Min Temp: %.1f, Precip: %.1f",
+                     weather.max_temp, weather.min_temp, weather.total_precip);
+            ESP_LOGI(TAG, "Sunrise: %s, Sunset: %s", weather.sunrise, weather.sunset);
+
+            // Optional: Print the 24-hour temperature array to verify
+            char array_buf[128] = {0};
+            int offset = 0;
+            for (int i = 0; i < 24; i++)
+            {
+                offset += snprintf(array_buf + offset, sizeof(array_buf) - offset, "%.1f%s",
+                                   weather.hourly.temp[i], (i == 23) ? "" : ", ");
+            }
+            ESP_LOGI(TAG, "Hourly Temps: [%s]", array_buf);
+        }
+
+        date_data_t date;
+        if (payload_store_get_date(&date))
+        {
+            ESP_LOGI(TAG, "--- DATE PAYLOAD ---");
+            ESP_LOGI(TAG, "Day: %s", date.day);
+            ESP_LOGI(TAG, "Formatted: %s", date.formatted);
+        }
+
+        cryptic_data_t cryptic;
+        if (payload_store_get_cryptic(&cryptic))
+        {
+            ESP_LOGI(TAG, "--- CRYPTIC PAYLOAD ---");
+            ESP_LOGI(TAG, "Puzzle: %s", cryptic.puzzle);
+            ESP_LOGI(TAG, "Length: %s", cryptic.length);
+        }
+
         // Handle Display Updates
         display_draw_static_ui();
     }
